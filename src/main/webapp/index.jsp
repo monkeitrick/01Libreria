@@ -36,6 +36,7 @@
             </select>
         </form>
         <p>${errorinsercion}</p>
-        <a href="autores.jsp">Ver Listado De Autores</a>
+        <p><a href="autores.jsp">Ver Listado De Autores</a></p>
+        <p><a href="devoluciones.jsp">Ver Listado De Autores</a></p>
     </body>
 </html>

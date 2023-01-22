@@ -18,6 +18,11 @@ import java.util.LinkedHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import javax.sql.DataSource;
+
 import org.apache.tomcat.dbcp.dbcp2.BasicDataSource;
 
 import beans.Autor;
@@ -28,21 +33,17 @@ import beans.Libro;
  * @author Amaia
  */
 public class GestorBD {
-    private static final String DRIVER = "com.mysql.cj.jdbc.Driver";
-    private static final String URL = "jdbc:mysql://localhost:3306/biblioteca?zeroDateTimeBehavior=CONVERT_TO_NULL";
-    private static final String USER = "root";
-    private static final String PASS = "";
-    private static BasicDataSource dataSource;
+	private static DataSource dataSource;
 
     public GestorBD() {
-        //Creamos el pool de conexiones
-        dataSource = new BasicDataSource();
-        dataSource.setDriverClassName(DRIVER);
-        dataSource.setUrl(URL);
-        dataSource.setUsername(USER);
-        dataSource.setPassword(PASS);
-        //Indicamos el tamaño del pool de conexiones
-        dataSource.setInitialSize(50);
+        try {
+            InitialContext ctx = new InitialContext();
+            Context env = (Context) ctx.lookup("java:comp/env");
+            // nombre del recurso en el context.xml
+            dataSource = (DataSource) env.lookup("jdbc/poolBibliotecaDB");
+        } catch (NamingException e) {
+            e.printStackTrace();
+        }
     }
     
     public ArrayList<Libro> libros(){
@@ -312,4 +313,75 @@ public class GestorBD {
 //	        e.printStackTrace();
 //		}
     }
+
+	public LinkedHashMap<String, Integer> librosPrestados() {
+		LinkedHashMap<String, Integer> librosPrestados= new LinkedHashMap<String, Integer>();
+		String sql = "select libro.titulo, prestamo.fecha from prestamo, libro where libro.id=prestamo.idlibro group by libro.titulo order by prestamo.fecha";
+        try {
+            Connection con = dataSource.getConnection();
+            Statement st = con.createStatement();
+            ResultSet rs = st.executeQuery(sql);
+            Date fechaactual = new Date(System.currentTimeMillis());
+            int milisecondsByDay = 86400000;
+            while(rs.next()){
+            	String nombre=rs.getString("libro.titulo");
+            	Date fecha= rs.getDate("prestamo.fecha");
+            	int dias = (int) ((fechaactual.getTime()-fecha.getTime()) / milisecondsByDay);
+            	librosPrestados.put(nombre, dias);
+            }
+            rs.close();
+            st.close();
+            con.close();
+        } catch (SQLException ex) {
+            Logger.getLogger(GestorBD.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return librosPrestados;
+	}
+	
+	public void borrarLibros(String arrLibro) {
+		String sql = "delete FROM prestamo WHERE idlibro = (select id from libro where titulo=?);";
+        try {
+            Connection con = dataSource.getConnection();
+            PreparedStatement st = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            st.setString(1, arrLibro);
+            st.executeUpdate();
+            ResultSet rs = st.getGeneratedKeys();
+            
+           
+            rs.close();
+            st.close();
+            con.close();
+        } catch (SQLException ex) {
+            Logger.getLogger(GestorBD.class.getName()).log(Level.SEVERE, null, ex);
+        }
+	}
+	
+//	public int insertarLibro(Libro libro){
+//        int id = -1;
+//        String sql = "INSERT INTO libro(titulo, paginas, genero, idautor) "
+//                + " VALUES(?, ?, ?, ?)";
+//        try {
+//            Connection con = dataSource.getConnection();
+//            PreparedStatement st = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+//            st.setString(1, libro.getTitulo());
+//            st.setInt(2, libro.getPaginas());
+//            st.setString(3, libro.getGenero());
+//            st.setInt(4, libro.getIdAutor());
+//            
+//            st.executeUpdate();
+//            
+//            ResultSet rs = st.getGeneratedKeys();
+//            if(rs.next()){
+//                id = rs.getInt(1);
+//            }
+//            
+//            rs.close();
+//            st.close();
+//            con.close();
+//        } catch (SQLException ex) {
+//            System.err.println("Error en metodo insertarLibro: " + ex);
+//        }
+//        
+//        return id;
+//    }
 }
